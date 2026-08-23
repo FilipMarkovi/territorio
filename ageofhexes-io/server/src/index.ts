@@ -1,5 +1,5 @@
 import { WebSocketServer, type WebSocket } from "ws";
-import { MAX_INTENTS_PER_SECOND } from "../../system/core/serverConstants.js";
+import { MAX_INTENTS_PER_SECOND, COINS_REWARD_WIN, COINS_REWARD_LOSS, MINIMUM_SURVIVAL_TIME_FOR_COINS } from "../../system/core/serverConstants.js";
 import crypto from "node:crypto";
 import {
   applyIntent,
@@ -61,12 +61,38 @@ export type ServerMsg =
       targetR: number;
       travelMs: number;
       serverTime?: number;
-    };
+    }
+  | { type: "COINS_UPDATE"; coins: number };
 
 interface AuthenticatedSession {
   dbId: string;      
   coins: number;
+  lastSavedCoins: number; // coins value already persisted to the database
   username: string;
+}
+
+function sendCoinsUpdate(playerId: PlayerId, coins: number) {
+  const socket = sockets.get(playerId);
+  if (socket && socket.readyState === socket.OPEN) {
+    socket.send(JSON.stringify({ type: "COINS_UPDATE", coins } satisfies ServerMsg));
+  }
+}
+
+async function persistPlayerCoins(session: AuthenticatedSession) {
+  if (session.coins === session.lastSavedCoins) return;
+
+  const coinsToSave = session.coins;
+  const { error } = await supabase
+    .from("players")
+    .update({ coins: coinsToSave })
+    .eq("id", session.dbId);
+
+  if (error) {
+    console.error(`[SUPABASE ERROR] Failed to save coins for ${session.dbId}:`, error.message);
+    return;
+  }
+
+  session.lastSavedCoins = coinsToSave;
 }
 
 function resolveJoinUsername(playerId: PlayerId, requestedUsername: string): string {
@@ -372,10 +398,20 @@ function destroyRoomSoon(roomId: RoomId) {
       if (!stats.dbId || stats.dbId.startsWith("guest-")) continue;
 
       const isWin = stats.placement === 1;
+      const coinsEarned = isWin ? COINS_REWARD_WIN : COINS_REWARD_LOSS;
+      const aliveEnoughForCoins = stats.survivalTimeSeconds >= MINIMUM_SURVIVAL_TIME_FOR_COINS ? coinsEarned : 0;
+
+      const session = authSessions.get(playerId);
+      if (session) {
+        session.coins += aliveEnoughForCoins;
+        sendCoinsUpdate(playerId, session.coins);
+      }
+
+      const coinsSavedByThisMatch = session?.coins;
 
       const dbSave = supabase.rpc('process_match_results', {
         p_player_id: stats.dbId, 
-        p_coins_earned: 0,
+        p_coins_earned: aliveEnoughForCoins,
         p_is_win: isWin,
         p_tiles_captured: stats.tilesCaptured,
         p_players_eliminated: stats.playersEliminated,
@@ -385,6 +421,11 @@ function destroyRoomSoon(roomId: RoomId) {
       }).then(({ error }) => {
         if (error) {
           console.error(`[SUPABASE ERROR] Failed to save stats for ${stats.dbId}:`, error.message);
+          return;
+        }
+        // Coins were already persisted by this RPC call, avoid a redundant overwrite on disconnect/logout/periodic sync.
+        if (session && coinsSavedByThisMatch !== undefined) {
+          session.lastSavedCoins = coinsSavedByThisMatch;
         }
       });
 
@@ -560,10 +601,12 @@ wss.on("connection", (ws, req) => {
         const profileUsername = typeof dbPlayer.username === "string" && dbPlayer.username.trim().length > 0
           ? dbPlayer.username.trim()
           : "Player";
+        const profileCoins = dbPlayer.coins || 0;
 
         authSessions.set(playerId, {
           dbId: googleUID,
-          coins: dbPlayer.coins || 0,
+          coins: profileCoins,
+          lastSavedCoins: profileCoins,
           username: profileUsername,
         });
 
@@ -579,7 +622,7 @@ wss.on("connection", (ws, req) => {
 
         applyTrackedUsernameToActiveRoom(playerId, profileUsername);
         
-        ws.send(JSON.stringify({ type: "AUTH_SUCCESS", username: profileUsername }));
+        ws.send(JSON.stringify({ type: "AUTH_SUCCESS", username: profileUsername, coins: profileCoins }));
       } catch (err) {
         ws.send(JSON.stringify({ type: "AUTH_FAILURE", reason: "Authentication failed." }));
       }
@@ -647,6 +690,10 @@ wss.on("connection", (ws, req) => {
     }
 
     if (intent.type === "LOGOUT") {
+      const session = authSessions.get(playerId);
+      if (session) {
+        persistPlayerCoins(session).catch(() => {});
+      }
       authSessions.delete(playerId);
       return;
     }
@@ -773,6 +820,11 @@ wss.on("connection", (ws, req) => {
     socketLifetime.delete(playerId);
     sockets.delete(playerId);
     intentHistory.delete(playerId);
+
+    const authSession = authSessions.get(playerId);
+    if (authSession) {
+      persistPlayerCoins(authSession).catch(() => {});
+    }
     authSessions.delete(playerId);
 
     const rid = playerRoom.get(playerId);

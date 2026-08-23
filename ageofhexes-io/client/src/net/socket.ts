@@ -49,8 +49,9 @@ export type ServerMsg =
   | { type: "STATE"; full: true; state: WireState; serverTime?: number }
   | { type: "STATE"; full: false; delta: WireStateDelta; serverTime?: number }
   | { type: "LOG"; text: string; color?: string }
-  | { type: "AUTH_SUCCESS"; username?: string }
+  | { type: "AUTH_SUCCESS"; username?: string; coins?: number }
   | { type: "AUTH_FAILURE"; reason?: string }
+  | { type: "COINS_UPDATE"; coins: number }
   | { type: "PONG"; t: number; serverTime: number }
   | SpecialAttackLaunchedMsg
   | PrivateLobbyMsg
@@ -69,8 +70,9 @@ export function connect(url: string, handlers: {
   onLobby: (connected: number, required: number, roomId: string, matchStartAt: number | null) => void;
   onState: (state: any) => void;
   onLog: (text: string, color?: string) => void;
-  onAuthSuccess?: (username?: string) => void;
+  onAuthSuccess?: (username?: string, coins?: number) => void;
   onAuthFailure?: (reason?: string) => void;
+  onCoinsUpdate?: (coins: number) => void;
   onPrivateLobby?: (msg: PrivateLobbyMsg) => void;
   onPrivateError?: (reason: string) => void;
   onUsernameChangeResult?: (msg: UsernameChangeResultMsg) => void;
@@ -135,10 +137,13 @@ export function connect(url: string, handlers: {
         handlers.onLog(msg.text, msg.color);
         break;
       case "AUTH_SUCCESS":
-        handlers.onAuthSuccess?.(msg.username);
+        handlers.onAuthSuccess?.(msg.username, msg.coins);
         break;
       case "AUTH_FAILURE":
         handlers.onAuthFailure?.(msg.reason);
+        break;
+      case "COINS_UPDATE":
+        handlers.onCoinsUpdate?.(msg.coins);
         break;
       case "PRIVATE_LOBBY":
         handlers.onPrivateLobby?.(msg);

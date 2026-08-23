@@ -102,3 +102,5 @@ Launch a bomb of plague to spawn an infection source.
 * **Player Elimination:** A player is immediately eliminated from the match when an opponent captures the tile containing their **HQ**.
 
 * **Victory:** The last surviving player remaining in the match is declared the winner or if a player owns 70% of all captureable tiles he will win the match.
+
+* **Rewards:** Players can earn 10 coins for win and 3 coins for loss (only requirement is being alive for longer than 90 seconds in a public match and to be authenticated)

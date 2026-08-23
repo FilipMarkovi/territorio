@@ -37,7 +37,7 @@ import { clearAbilityMode } from "./ui/abilityMode.js";
 import { clearSiegeAttackMode } from "./ui/siegeAttackMode.js";
 import { supabase, handleAuthPopupIfNeeded } from "./utils/db.js";
 import { initAntiMultiTab } from "./utils/antiMultiTab.js";
-import { setupAuthAndUsername } from "./ui/lobby/auth.js";
+import { setupAuthAndUsername, updateCoinsDisplay } from "./ui/lobby/auth.js";
 import { showActionError } from "./ui/hud.js";
 import { getSelectedServerHost } from "./constants/servers.js";
 
@@ -98,13 +98,19 @@ export const { sendIntent, tryAuth } = connect(wsUrl, {
   onPrivateError: (reason) => {
     showError(reason);
   },
-  onAuthSuccess: (username) => {
+  onAuthSuccess: (username, coins) => {
     if (username) {
       showSuccess(`Signed in as ${username}`);
+    }
+    if (typeof coins === "number") {
+      updateCoinsDisplay(coins);
     }
   },
   onAuthFailure: (reason) => {
     showError(reason ?? "Authentication failed.");
+  },
+  onCoinsUpdate: (coins) => {
+    updateCoinsDisplay(coins);
   },
   onUsernameChangeResult: async (msg) => {
     if (msg.success) {

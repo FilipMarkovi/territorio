@@ -38,6 +38,7 @@ export const lobbyRuntime = {
   refs: null as LobbyRefs | null,
   isUserAuthenticated: false,
   isAuthResolved: false,
+  coins: null as number | null,
   currentPrivateView: "MAIN" as PrivateViewMode,
   currentTopTab: "LOBBY" as LobbyTopTab,
   currentLeaderboardTab: "wins" as LeaderboardCategory,

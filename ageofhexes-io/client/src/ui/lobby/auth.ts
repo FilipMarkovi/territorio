@@ -117,12 +117,16 @@ export async function setupAuthAndUsername(sendIntent?: (intent: any) => void) {
     try {
       const { data: profile } = await supabase
         .from("players")
-        .select("username")
+        .select("username, coins")
         .eq("id", user.id)
         .maybeSingle();
 
       if (profile?.username) {
         username = profile.username;
+      }
+
+      if (typeof profile?.coins === "number") {
+        lobbyRuntime.coins = profile.coins;
       }
     } catch {
       console.warn("Failed to fetch username from database. Using random guest name.");
@@ -137,9 +141,14 @@ export async function setupAuthAndUsername(sendIntent?: (intent: any) => void) {
     const safeUsername = escapeHtml(username);
 
     refs.topBarAuthContainer.innerHTML = `
-      <button id="user-menu-trigger" style="background:none; border:none; color:#38bdf8; font:600 14px system-ui; cursor:pointer; display:flex; align-items:center; gap:4px; padding:4px 8px;">
-        ${safeUsername} ▾
-      </button>
+      <div style="display:flex; align-items:center; gap:10px;">
+        <span id="user-coins-display" style="color:#facc15; font:600 14px system-ui; display:flex; align-items:center; gap:4px;">
+          ${lobbyRuntime.coins ?? 0} 🪙
+        </span>
+        <button id="user-menu-trigger" style="background:none; border:none; color:#38bdf8; font:600 14px system-ui; cursor:pointer; display:flex; align-items:center; gap:4px; padding:4px 8px;">
+          ${safeUsername} ▾
+        </button>
+      </div>
       <div id="auth-dropdown" style="display:none; position:absolute; right:0; top:calc(100% + 8px); background:#1e293b; border:1px solid rgba(255,255,255,0.1); border-radius:6px; min-width:190px; box-shadow:0 4px 12px rgba(0,0,0,0.5); overflow:hidden;">
         <button id="change-username-btn" style="width:100%; text-align:left; background:none; border:none; color:#e2e8f0; font:500 13px system-ui; padding:10px 12px; cursor:pointer; transition:background 0.2s;">
           Change Username
@@ -198,6 +207,7 @@ export async function setupAuthAndUsername(sendIntent?: (intent: any) => void) {
   // 2. FALLBACK: Unauthenticated state (Expired token, logged out, or no session)
   refs.inputEl.value = getOrCreateGuestName();
   lobbyRuntime.isUserAuthenticated = false;
+  lobbyRuntime.coins = null;
   refs.inputEl.disabled = false;
   refs.inputEl.style.opacity = "1";
   refs.inputEl.style.cursor = "text";
@@ -219,4 +229,12 @@ export async function setupAuthAndUsername(sendIntent?: (intent: any) => void) {
   topGoogleBtn.onclick = () => {
     loginWithGoogle();
   };
+}
+
+export function updateCoinsDisplay(coins: number) {
+  lobbyRuntime.coins = coins;
+  const el = document.getElementById("user-coins-display");
+  if (el) {
+    el.textContent = `${coins} 🪙`;
+  }
 }
