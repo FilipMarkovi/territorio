@@ -616,13 +616,13 @@ export function updateLobbyUI() {
     const matchStartAt = getValidMatchStartAt(lobby.matchStartAt);
     const timerSuffix =
       matchStartAt !== null
-        ? ` • Match starts in ${formatLobbyCountdown(matchStartAt)}`
+        ? `Match starts in ${formatLobbyCountdown(matchStartAt)}`//` • Match starts in ${formatLobbyCountdown(matchStartAt)}`
         : "";
 
     if (clientUIState.phase === "QUEUED") {
-      refs.statusEl.textContent = `Waiting for players: ${lobby.connected}/${lobby.required}${timerSuffix}`;
+      refs.statusEl.textContent = `${timerSuffix}`;//`Waiting for players: ${lobby.connected}/${lobby.required}${timerSuffix}`;
     } else {
-      refs.statusEl.textContent = `Lobby: ${lobby.connected}/${lobby.required}${timerSuffix}`;
+      refs.statusEl.textContent = `${timerSuffix}`;//`Lobby: ${lobby.connected}/${lobby.required}${timerSuffix}`;
       refs.inputEl.disabled = lobbyRuntime.isUserAuthenticated;
       refs.playBtn.disabled = false;
       refs.playBtn.style.opacity = "1";
