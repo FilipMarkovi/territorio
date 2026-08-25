@@ -9,21 +9,15 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        server:
-          - name: "EU Server (Frankfurt)"
-            ip: ${{ secrets.VULTR_IP }}
-            password: ${{ secrets.VULTR_PASSWORD }}
-          - name: "US Server (New York)"
-            ip: ${{ secrets.US_VULTR_IP }}
-            password: ${{ secrets.US_VULTR_PASSWORD }}
+        region: [ "eu", "us" ]
 
     steps:
-      - name: SSH and Deploy to ${{ matrix.server.name }}
+      - name: SSH and Deploy to Server
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ matrix.server.ip }}
+          host: ${{ matrix.region == 'eu' && secrets.VULTR_IP || secrets.US_VULTR_IP }}
           username: root
-          password: ${{ matrix.server.password }}
+          password: ${{ matrix.region == 'eu' && secrets.VULTR_PASSWORD || secrets.US_VULTR_PASSWORD }}
           script: |
             cd ageofhexes/ageofhexes-io
             git pull origin main
