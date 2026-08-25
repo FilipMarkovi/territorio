@@ -3,7 +3,8 @@ import {
   applyWireStateDelta,
   deserializeState,
   type WireState,
-  type WireStateDelta
+  type WireStateDelta,
+  type PlayerMatchStats
 } from "../../../shared/index.js";
 import { clientNetState } from "../state/clientState.js";
 
@@ -53,6 +54,7 @@ export type ServerMsg =
   | { type: "AUTH_FAILURE"; reason?: string }
   | { type: "COINS_UPDATE"; coins: number }
   | { type: "PONG"; t: number; serverTime: number }
+  | { type: "POST_MATCH_RESULTS"; stats: PlayerMatchStats }
   | SpecialAttackLaunchedMsg
   | PrivateLobbyMsg
   | PrivateErrorMsg
@@ -77,6 +79,7 @@ export function connect(url: string, handlers: {
   onPrivateError?: (reason: string) => void;
   onUsernameChangeResult?: (msg: UsernameChangeResultMsg) => void;
   onSpecialAttackLaunched?: (msg: SpecialAttackLaunchedMsg) => void;
+  onMatchResults?: (stats: PlayerMatchStats) => void;
 }) {
   const ws = new WebSocket(url);
   let latestWireState: WireState | null = null;
@@ -156,6 +159,9 @@ export function connect(url: string, handlers: {
         break;
       case "SPECIAL_ATTACK_LAUNCHED":
         handlers.onSpecialAttackLaunched?.(msg);
+        break;
+      case "POST_MATCH_RESULTS":
+        handlers.onMatchResults?.(msg.stats);
         break;
       case "PONG":
         clientNetState.serverClockOffset = msg.serverTime - Date.now();

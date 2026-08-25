@@ -49,6 +49,8 @@ export const STEEPNESS = 1.6;
 export const TIME_TO_AI_AUTOFILL = 5_000;
 export const DEFAULT_BOT_AGGRESSION = 40;
 
+export const HQ_PLACEMENT_TIME_LIMIT = 15_000;
+
 export const GAMER_NAMES: string[] = [
   "ShadowByte", "PixelKnight", "CyberMage", "NeonReaper", "VoidWalker",
   "AlphaZen", "RoguePulse", "IronGlimpse", "FrostWarden", "ZenithZero",

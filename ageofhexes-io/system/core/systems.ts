@@ -20,7 +20,7 @@ import { BASE_CAPTURE_COST, FORT_DEFENSE_ADJACENT, FORT_DEFENSE_SELF,
 import type { CoreGameState } from "./state.js";
 import { handlePlaceHQ } from "./state.js";
 import { getTile, isAdjacentOwned, isAdjacentOwnedAndConnected } from "./state.js";
-import { sendPlayerLog, updatePlayerStat } from "../../server/src/index.js";
+import { sendPlayerLog, updatePlayerStat, sendMatchResults } from "../../server/src/index.js";
 
 export type Intent =
   | { type: "PLACE_HQ"; q: number; r: number }
@@ -789,13 +789,17 @@ export function handlePlayerDeath(
     }
   }
 
-  // 2. Remove player from player list
+  // 2. mark player as dead and update stats
   const player = state.players.get(deadPlayerId);
+  // count includes this player (not yet marked eliminated), which is exactly their finishing placement
+  const placement = Array.from(state.players.values()).filter(p => !p.eliminated).length;
   if (player) {
     player.eliminated = true;
-    updatePlayerStat(player.id, "placement", 8)
-    updatePlayerStat(player.id, "survivalTimeSeconds", Date.now())
+    updatePlayerStat(player.id, "placement", placement);
+    updatePlayerStat(player.id, "survivalTimeSeconds", Date.now());
   }
+
+  sendMatchResults(deadPlayerId);
   
 
   // 3. Recalculate defenses (important!)
@@ -820,11 +824,12 @@ export function checkGameOver(state: CoreGameState) {
   }
 
   if (aliveCount <= 1 && lastAliveId) {
-    state.gameOver = { winner: lastAliveId, reason: "ELIMINATION" };
     if (lastAliveId) {
       updatePlayerStat(lastAliveId, "placement", 1);
       updatePlayerStat(lastAliveId, "survivalTimeSeconds", Date.now());
+      sendMatchResults(lastAliveId);
     }
+    state.gameOver = { winner: lastAliveId, reason: "ELIMINATION" };
   } else if (realPlayerInRoom <= 0) {
     state.gameOver = { winner: lastAliveId ? lastAliveId : "BOTS", reason: "ELIMINATION" };
   } else {
@@ -834,18 +839,27 @@ export function checkGameOver(state: CoreGameState) {
       }
     }
     if (capturableTileCount > 0) {
-    for (const p of state.players.values()) {
-      if (p.status !== "PLAYING" || p.eliminated) continue;
-      const territorySize = state.connectedCache?.get(p.id)?.size ?? 0;
-      const territoryPercent = (territorySize / capturableTileCount) * 100;
-      if (territoryPercent >= TERRITORY_WIN_PERCENT) {
-        state.gameOver = { winner: p.id, reason: "TERRITORY" };
-        updatePlayerStat(p.id, "placement", 1);
-        updatePlayerStat(p.id, "survivalTimeSeconds", Date.now());
-        return;
+      for (const p of state.players.values()) {
+        if (p.status !== "PLAYING" || p.eliminated) continue;
+        const territorySize = state.connectedCache?.get(p.id)?.size ?? 0;
+        const territoryPercent = (territorySize / capturableTileCount) * 100;
+        if (territoryPercent >= TERRITORY_WIN_PERCENT) {
+          updatePlayerStat(p.id, "placement", 1);
+          updatePlayerStat(p.id, "survivalTimeSeconds", Date.now());
+          sendMatchResults(p.id);
+
+          for (const other of state.players.values()) {
+            if (other.id !== p.id && !other.eliminated && !other.isBot) {
+              updatePlayerStat(other.id, "placement", 2);
+              updatePlayerStat(other.id, "survivalTimeSeconds", Date.now());
+              sendMatchResults(other.id);
+            }
+          }
+          state.gameOver = { winner: p.id, reason: "TERRITORY" };
+          return;
+        }
       }
     }
-  }
   }
 }
 

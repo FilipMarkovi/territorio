@@ -1,5 +1,5 @@
 import { WebSocketServer, type WebSocket } from "ws";
-import { MAX_INTENTS_PER_SECOND, COINS_REWARD_WIN, COINS_REWARD_LOSS, MINIMUM_SURVIVAL_TIME_FOR_COINS } from "../../system/core/serverConstants.js";
+import { MAX_INTENTS_PER_SECOND, COINS_REWARD_WIN, COINS_REWARD_LOSS, MINIMUM_SURVIVAL_TIME_FOR_COINS, HQ_PLACEMENT_TIME_LIMIT } from "../../system/core/serverConstants.js";
 import crypto from "node:crypto";
 import {
   applyIntent,
@@ -28,6 +28,7 @@ import { fileURLToPath } from "node:url";
 import { supabase } from './database/db.js';
 import { privateRoomCodes, createPrivateRoom } from "./util/rooms.js";
 import { getNextAvailablePlayerColor } from "./util/playerColors.js";
+import { PlayerMatchStats } from "../../shared/gameTypes.js";
 
 const __filename = fileURLToPath(import.meta.url);
 
@@ -62,7 +63,8 @@ export type ServerMsg =
       travelMs: number;
       serverTime?: number;
     }
-  | { type: "COINS_UPDATE"; coins: number };
+  | { type: "COINS_UPDATE"; coins: number }
+  | { type: "POST_MATCH_RESULTS"; stats: PlayerMatchStats };
 
 interface AuthenticatedSession {
   dbId: string;      
@@ -75,6 +77,19 @@ function sendCoinsUpdate(playerId: PlayerId, coins: number) {
   const socket = sockets.get(playerId);
   if (socket && socket.readyState === socket.OPEN) {
     socket.send(JSON.stringify({ type: "COINS_UPDATE", coins } satisfies ServerMsg));
+  }
+}
+
+export function sendMatchResults(playerId: PlayerId) {
+  const socket = sockets.get(playerId);
+  const roomId = playerRoom.get(playerId);
+  if (!roomId) return;
+
+  const stats = rooms.get(roomId)?.matchStats.get(playerId);
+  if (!stats) return;
+
+  if (socket && socket.readyState === socket.OPEN) {
+    socket.send(JSON.stringify({ type: "POST_MATCH_RESULTS", stats } satisfies ServerMsg));
   }
 }
 
@@ -186,7 +201,7 @@ export function updatePlayerStat(playerId: PlayerId, stat: TrackedStat, amount: 
   if (!stats) return;
   
   if (stat === "survivalTimeSeconds") {
-    stats.survivalTimeSeconds = Math.floor((amount - room.matchStartAt!) / 1000);
+    stats.survivalTimeSeconds = Math.max(0, Math.floor((amount - room.matchStartAt! - HQ_PLACEMENT_TIME_LIMIT) / 1000)); // Subtract HQ placement time from survival time
   } else if (stat === "placement") {
     stats.placement = amount;
   } else {
@@ -310,7 +325,7 @@ function handlePlayerLeaveRoom(playerId: PlayerId) {
 
   const player = room.state.players.get(playerId);
   if (!player || player.status !== "QUEUED") return false;
-
+  
   room.playerIds.delete(playerId);
   room.state.players.delete(playerId);
   room.matchStats.delete(playerId);
@@ -335,10 +350,11 @@ function handleReturnToLobby(pid: PlayerId) {
   let player = state.players.get(pid);
   if (!player) return;
 
+  // must run before removing the room mapping so sendMatchResults can locate the room
+  handlePlayerDeath(state, pid);
+
   room.playerIds.delete(pid);
   playerRoom.delete(pid);
-
-  handlePlayerDeath(state, pid);
   room.state.players.delete(pid);
 
   player.status = "LOBBY";

@@ -6,6 +6,12 @@ export interface LobbyRefs {
   lobbyRoot: HTMLDivElement;
   returnRoot: HTMLDivElement;
   endResultTextEl: HTMLDivElement;
+  matchStatsListEl: HTMLDivElement;
+  expandedResultsSection: HTMLDivElement;
+  collapsedResultsSection: HTMLDivElement;
+  spectateBtn: HTMLButtonElement;
+  expandBtn: HTMLButtonElement;
+  collapsedReturnBtn: HTMLButtonElement;
   lobbyTabBtn: HTMLButtonElement;
   leaderboardTabBtn: HTMLButtonElement;
   lobbyScreenEl: HTMLDivElement;
@@ -46,7 +52,8 @@ export const lobbyRuntime = {
   attemptedPrivateJoinKey: null as string | null,
   leaderboardCache: new Map<LeaderboardCategory, { data: LeaderboardEntry[]; timestamp: number }>(),
   scheduledUiUpdate: false,
-  uiRefreshHandler: null as (() => void) | null
+  uiRefreshHandler: null as (() => void) | null,
+  resultsCollapsed: false
 };
 
 export function setLobbyRefs(refs: LobbyRefs) {

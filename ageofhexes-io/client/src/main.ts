@@ -138,6 +138,14 @@ export const { sendIntent, tryAuth } = connect(wsUrl, {
 
     showError("Failed to change username. Please try again.");
   },
+  onMatchResults: (stats) => {
+    if (clientUIState.phase === "PLAYING") {
+      clientNetState.matchStats = stats;
+    } else {
+      clientNetState.matchStats = null;
+    }
+    scheduleLobbyUIUpdate();
+  },
   onSpecialAttackLaunched: (msg) => {
     enqueueProjectile({
       attackType: msg.attackType,

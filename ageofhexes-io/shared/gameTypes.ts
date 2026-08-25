@@ -143,3 +143,13 @@ export interface CoreGameState {
   placementTimeLeft?: number;
   lastPlagueSpreadAt?: number;
 }
+
+export interface PlayerMatchStats {
+  dbId: string;
+  tilesCaptured: number;
+  playersEliminated: number;
+  goldSpent: number;
+  armySpent: number;
+  survivalTimeSeconds: number;
+  placement: number;
+}

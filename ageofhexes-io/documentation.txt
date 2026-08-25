@@ -103,3 +103,7 @@ measurement and displaying latency
 or by participating (3 coins), but they have to survive for 90 seconds to earn coins otherwise
 nothing is gained, added coins showcase in lobby next to authed username.
 Players cant use coins for anything yet and are setup for future additions of shop, skins etc.
+---------------------------
+25.8.2026. - add post match stats modal for displaying match stats (only shows stats from public matches
+as only there they are tracked). fixed time alive to not track hq placement time, ADDED NEW
+US EAST SERVER

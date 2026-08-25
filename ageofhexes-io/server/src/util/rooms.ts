@@ -3,21 +3,11 @@ import { MIN_PRIVATE_ROOM_PLAYERS, MAX_PRIVATE_ROOM_PLAYERS, ROOM_CODE_LENGTH } 
 import { PlayerId, WireState } from "../../../shared/index.js";
 import crypto from "node:crypto";
 import { createGameState, setPlayer } from "../../../system/index.js";
+import { PlayerMatchStats } from "../../../shared/gameTypes.js";
 
 export type RoomId = string;
 export const privateRoomCodes = new Map<string, RoomId>();
 const ALPHANUM = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
-
-
-export interface PlayerMatchStats {
-  dbId: string;
-  tilesCaptured: number;
-  playersEliminated: number;
-  goldSpent: number;
-  armySpent: number;
-  survivalTimeSeconds: number;
-  placement: number;
-}
 
 export interface RoomSettings {
   code: string;           

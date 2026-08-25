@@ -6,10 +6,11 @@ export interface ServerOption {
 
 // To add a new server region, just append another entry here.
 export const SERVER_OPTIONS: ServerOption[] = [
-  { id: "eu-frankfurt", label: "Frankfurt (EU)", host: "api.ageofhexes.io" },
+  { id: "eu-central", label: "EU Central", host: "eu.ageofhexes.io" },
+  { id: "us-east", label: "US East", host: "us.ageofhexes.io" },
 ];
 
-export const DEFAULT_SERVER_ID = "eu-frankfurt";
+export const DEFAULT_SERVER_ID = "eu-central";
 
 const SELECTED_SERVER_STORAGE_KEY = "aoh_selected_server_id";
 

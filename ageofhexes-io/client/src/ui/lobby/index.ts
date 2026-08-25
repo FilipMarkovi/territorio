@@ -9,6 +9,7 @@ import { handleRouteChange, handleTopTabNavigation, initLobbyRouting, maybeJoinP
 import type { LeaderboardCategory, PrivateLobbyUpdateMessage } from "./types.js";
 import { setGuestName } from "./helpers.js";
 import { USERNAME_STORAGE_KEY } from "../../../../shared/index.js";
+import type { PlayerMatchStats } from "../../../../shared/index.js";
 import { getServerNow } from "../../utils/time.js";
 import { SERVER_OPTIONS, getSelectedServerId, setSelectedServerId } from "../../constants/servers.js";
 
@@ -337,35 +338,120 @@ export function initLobbyUI(sendIntent: (intent: any) => void) {
   const returnRoot = document.createElement("div");
   returnRoot.style.position = "absolute";
   returnRoot.style.left = "50%";
-  returnRoot.style.top = "40%"; 
+  returnRoot.style.top = "35%";
   returnRoot.style.transform = "translate(-50%, -50%)";
   returnRoot.style.zIndex = "40";
-  returnRoot.style.display = "none"; 
-  returnRoot.style.flex = "0 0 auto"; // Ensure it doesn't stretch
+  returnRoot.style.display = "none";
   returnRoot.style.flexDirection = "column";
-  returnRoot.style.alignItems = "center"; 
-  returnRoot.style.gap = "20px"; // Space between winner text and button
+  returnRoot.style.alignItems = "center";
+  returnRoot.style.gap = "18px";
+  returnRoot.style.minWidth = "min(320px, calc(100vw - 32px))";
+  returnRoot.style.maxWidth = "min(360px, calc(100vw - 32px))";
+  returnRoot.style.padding = "22px 24px";
+  returnRoot.style.borderRadius = "14px";
+  returnRoot.style.background = "rgba(15, 23, 42, 0.72)";
+  returnRoot.style.border = "1px solid rgba(255,255,255,0.15)";
+  returnRoot.style.backdropFilter = "blur(6px)";
+  returnRoot.style.boxShadow = "0 18px 44px rgba(0,0,0,0.5)";
+  returnRoot.style.boxSizing = "border-box";
 
   const endResultTextEl = document.createElement("div");
   endResultTextEl.style.textAlign = "center";
   endResultTextEl.style.color = "#f8fafc";
-  endResultTextEl.style.font = "800 36px system-ui";
+  endResultTextEl.style.font = "800 28px system-ui";
   endResultTextEl.style.textShadow = "0 4px 16px rgba(0,0,0,0.8), 0 2px 4px rgba(0,0,0,0.6)";
   endResultTextEl.style.letterSpacing = "0.5px";
 
+  const matchStatsListEl = document.createElement("div");
+  matchStatsListEl.style.display = "flex";
+  matchStatsListEl.style.flexDirection = "column";
+  matchStatsListEl.style.gap = "6px";
+  matchStatsListEl.style.width = "100%";
+  matchStatsListEl.style.font = "500 13px system-ui";
+  matchStatsListEl.style.color = "#e2e8f0";
+  matchStatsListEl.style.background = "rgba(255,255,255,0.05)";
+  matchStatsListEl.style.borderRadius = "10px";
+  matchStatsListEl.style.padding = "10px 14px";
+
+  const expandedButtonsRow = document.createElement("div");
+  expandedButtonsRow.style.display = "flex";
+  expandedButtonsRow.style.justifyContent = "space-between";
+  expandedButtonsRow.style.width = "100%";
+  expandedButtonsRow.style.gap = "10px";
+
   const returnButton = document.createElement("button");
   returnButton.textContent = "Return to Lobby";
-  returnButton.style.padding = "10px 18px";
+  returnButton.style.flex = "1";
+  returnButton.style.padding = "10px 14px";
   returnButton.style.borderRadius = "8px";
   returnButton.style.border = "1px solid rgba(255,255,255,0.2)";
-  returnButton.style.background = "rgba(15, 23, 42, 0.85)";
+  returnButton.style.background = "rgba(37, 99, 235, 0.85)";
   returnButton.style.color = "white";
-  returnButton.style.font = "600 14px system-ui";
+  returnButton.style.font = "600 13px system-ui";
   returnButton.style.cursor = "pointer";
-  returnButton.style.backdropFilter = "blur(4px)";
 
-  returnRoot.appendChild(endResultTextEl);
-  returnRoot.appendChild(returnButton);
+  const spectateBtn = document.createElement("button");
+  spectateBtn.textContent = "Spectate";
+  spectateBtn.style.flex = "1";
+  spectateBtn.style.padding = "10px 14px";
+  spectateBtn.style.borderRadius = "8px";
+  spectateBtn.style.border = "1px solid rgba(255,255,255,0.2)";
+  spectateBtn.style.background = "rgba(255,255,255,0.08)";
+  spectateBtn.style.color = "white";
+  spectateBtn.style.font = "600 13px system-ui";
+  spectateBtn.style.cursor = "pointer";
+
+  expandedButtonsRow.appendChild(returnButton);
+  expandedButtonsRow.appendChild(spectateBtn);
+
+  const expandedResultsSection = document.createElement("div");
+  expandedResultsSection.style.display = "flex";
+  expandedResultsSection.style.flexDirection = "column";
+  expandedResultsSection.style.alignItems = "center";
+  expandedResultsSection.style.gap = "18px";
+  expandedResultsSection.style.width = "100%";
+  expandedResultsSection.appendChild(endResultTextEl);
+  expandedResultsSection.appendChild(matchStatsListEl);
+  expandedResultsSection.appendChild(expandedButtonsRow);
+
+  const collapsedButtonsRow = document.createElement("div");
+  collapsedButtonsRow.style.display = "flex";
+  collapsedButtonsRow.style.justifyContent = "space-between";
+  collapsedButtonsRow.style.width = "100%";
+  collapsedButtonsRow.style.gap = "10px";
+
+  const collapsedReturnBtn = document.createElement("button");
+  collapsedReturnBtn.textContent = "Return to Lobby";
+  collapsedReturnBtn.style.flex = "1";
+  collapsedReturnBtn.style.padding = "10px 14px";
+  collapsedReturnBtn.style.borderRadius = "8px";
+  collapsedReturnBtn.style.border = "1px solid rgba(255,255,255,0.2)";
+  collapsedReturnBtn.style.background = "rgba(37, 99, 235, 0.85)";
+  collapsedReturnBtn.style.color = "white";
+  collapsedReturnBtn.style.font = "600 13px system-ui";
+  collapsedReturnBtn.style.cursor = "pointer";
+
+  const expandBtn = document.createElement("button");
+  expandBtn.textContent = "Expand";
+  expandBtn.style.flex = "1";
+  expandBtn.style.padding = "10px 14px";
+  expandBtn.style.borderRadius = "8px";
+  expandBtn.style.border = "1px solid rgba(255,255,255,0.2)";
+  expandBtn.style.background = "rgba(255,255,255,0.08)";
+  expandBtn.style.color = "white";
+  expandBtn.style.font = "600 13px system-ui";
+  expandBtn.style.cursor = "pointer";
+
+  collapsedButtonsRow.appendChild(collapsedReturnBtn);
+  collapsedButtonsRow.appendChild(expandBtn);
+
+  const collapsedResultsSection = document.createElement("div");
+  collapsedResultsSection.style.display = "none";
+  collapsedResultsSection.style.width = "100%";
+  collapsedResultsSection.appendChild(collapsedButtonsRow);
+
+  returnRoot.appendChild(expandedResultsSection);
+  returnRoot.appendChild(collapsedResultsSection);
   document.body.appendChild(returnRoot);
 
   const refs = {
@@ -374,6 +460,12 @@ export function initLobbyUI(sendIntent: (intent: any) => void) {
     lobbyRoot,
     returnRoot,
     endResultTextEl,
+    matchStatsListEl,
+    expandedResultsSection,
+    collapsedResultsSection,
+    spectateBtn,
+    expandBtn,
+    collapsedReturnBtn,
     lobbyTabBtn: topBarRoot.querySelector("#top-tab-lobby") as HTMLButtonElement,
     leaderboardTabBtn: topBarRoot.querySelector("#top-tab-leaderboard") as HTMLButtonElement,
     lobbyScreenEl: lobbyRoot.querySelector("#lobby-screen") as HTMLDivElement,
@@ -562,20 +654,35 @@ export function initLobbyUI(sendIntent: (intent: any) => void) {
     syncRouteFromState();
   });
 
-  returnButton.onclick = () => {
+  function returnToLobby() {
     clientNetState.isReturningToLobby = true;
+    clientUIState.phase = "LOBBY";
     sendIntent({ type: "RETURN_LOBBY" });
     clientNetState.state = null;
     clientNetState.roomId = null;
     clientNetState.privateRoomCode = null;
-    clientUIState.phase = "LOBBY";
+    clientNetState.matchStats = null;
     clientUIState.selectedBuilding = null;
     clientUIState.selectedAbility = null;
     clientUIState.selectedSpecialAttack = null;
     setLobbyTopTab("LOBBY");
     setPrivateView("MAIN", hideError);
     refs.returnRoot.style.display = "none";
+    lobbyRuntime.resultsCollapsed = false;
     syncRouteFromState();
+    scheduleLobbyUIUpdate();
+  }
+
+  returnButton.onclick = returnToLobby;
+  refs.collapsedReturnBtn.onclick = returnToLobby;
+
+  refs.spectateBtn.onclick = () => {
+    lobbyRuntime.resultsCollapsed = true;
+    scheduleLobbyUIUpdate();
+  };
+
+  refs.expandBtn.onclick = () => {
+    lobbyRuntime.resultsCollapsed = false;
     scheduleLobbyUIUpdate();
   };
 
@@ -665,11 +772,47 @@ export function updateLobbyUI() {
     }
 
     refs.returnRoot.style.display = "flex";
+    renderMatchStats(refs.matchStatsListEl, clientNetState.matchStats);
+    refs.expandedResultsSection.style.display = lobbyRuntime.resultsCollapsed ? "none" : "flex";
+    refs.collapsedResultsSection.style.display = lobbyRuntime.resultsCollapsed ? "block" : "none";
   } else {
     refs.returnRoot.style.display = "none";
   }
 
   syncRouteFromState();
+}
+
+function formatSurvivalTime(totalSeconds: number): string {
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+}
+
+function renderMatchStats(container: HTMLDivElement, stats: PlayerMatchStats | null) {
+  if (!stats) {
+    container.innerHTML = "";
+    container.style.display = "none";
+    return;
+  }
+
+  container.style.display = "flex";
+  const rows: Array<[string, string]> = [
+    ["Placement", stats.placement > 0 ? `#${stats.placement}` : "-"],
+    ["Tiles Captured", `${stats.tilesCaptured}`],
+    ["Players Eliminated", `${stats.playersEliminated}`],
+    ["Gold Spent", `${stats.goldSpent}`],
+    ["Army Spent", `${stats.armySpent}`],
+    ["Survival Time", formatSurvivalTime(stats.survivalTimeSeconds)],
+  ];
+
+  container.innerHTML = rows
+    .map(([label, value]) => `
+      <div style="display:flex; justify-content:space-between; gap:12px;">
+        <span style="color:#94a3b8;">${label}</span>
+        <span style="font-weight:600;">${value}</span>
+      </div>
+    `)
+    .join("");
 }
 
 export function handlePrivateLobbyUpdate(msg: PrivateLobbyUpdateMessage) {

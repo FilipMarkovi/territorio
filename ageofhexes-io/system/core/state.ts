@@ -3,6 +3,7 @@ import type { PlayerId, PlayerState, TileState, GamePhase, WaterNetwork } from "
 import { getConnectedTilesFromHQ, handlePlayerDeath, recalcDefense } from "./systems.js";
 import { MIN_HQ_DISTANCE } from "../../shared/constants.js";
 import { key, DIRS, neighbors, neighborTiles, hexDistance, getHexDistance } from "../../shared/util.js";
+import { HQ_PLACEMENT_TIME_LIMIT } from "../index.js";
 
 export interface CoreGameState {
   phase: GamePhase;
@@ -138,8 +139,8 @@ export function handlePlaceHQ(
 
 export function startHQPlacementCountdown(state: CoreGameState, roomId: string) {
   state.phase = "HQ_PLACEMENT";
-  state.started = true
-  state.placementTimeLeft = 15;
+  state.started = true;
+  state.placementTimeLeft = Math.floor(HQ_PLACEMENT_TIME_LIMIT / 1000);
 
   const timerInterval = setInterval(() => {
     if (!state.placementTimeLeft) state.placementTimeLeft = 0;

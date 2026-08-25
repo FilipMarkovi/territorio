@@ -1,5 +1,5 @@
 
-import type { CoreGameState, BuildingType, PlayerEffectType, SiegeAttackType } from "../../../shared/index.js";
+import type { CoreGameState, BuildingType, PlayerEffectType, SiegeAttackType, PlayerMatchStats } from "../../../shared/index.js";
 
 export const clientUIState = {
   selectedBuilding: null as BuildingType | null,
@@ -18,4 +18,5 @@ export const clientNetState = {
   serverClockOffset: 0,
   isReturningToLobby: false,
   latencyMs: null as number | null,
+  matchStats: null as PlayerMatchStats | null,
 };
