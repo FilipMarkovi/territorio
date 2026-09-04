@@ -152,13 +152,14 @@ export function canStartCapture(state: CoreGameState, playerId: PlayerId, q: num
   const player = state.players.get(playerId);
   if (!tile || !player) return false;
   if (tile.ownerId === playerId) return false;
+  if (tile.terrain === "BEDROCK" || tile.terrain === "WATER") return false;
+  if (tile.capture) return false;
+  if(Date.now() - tile.lastDefendedAt < TILE_ATTACK_COOLDOWN) return false
   const targetKey = key(q, r);
   const hasLandAttack = isAdjacentOwnedAndConnected(state, q, r, playerId);
   const hasNavalAttack = hasLandAttack ? false : canStartNavalCapture(state, playerId, targetKey);
   if (!hasLandAttack && !hasNavalAttack) return false;
-  if (tile.terrain === "BEDROCK" || tile.terrain === "WATER") return false;
   const cost = captureCost(tile.defense);
-  if(Date.now() - tile.lastDefendedAt < TILE_ATTACK_COOLDOWN) return false
   return player.army >= cost;
 }
 
@@ -342,6 +343,18 @@ export function tryCapture(
   if (tile.ownerId === playerId) return false; // 
   if (tile.terrain === "BEDROCK" || tile.terrain === "WATER") return false;
 
+  // Already being captured by same player → ignore . what if another player
+  if (tile.capture && tile.capture.by !== playerId) {
+    return false;
+  }
+
+  if (tile.capture && tile.capture.by === playerId) return true;
+
+  const cost = captureCost(tile.defense);
+  if (player.army < cost) return false;
+
+  if (tile.lastDefendedAt && Date.now() - tile.lastDefendedAt < TILE_ATTACK_COOLDOWN) return false;
+
   const targetKey = key(q, r);
   const hasLandAttack = isAdjacentOwnedAndConnected(state, q, r, playerId);
   let navalCapture: { sourceHarborKey: string; waterTilesCrossed: number; path: string[] } | null = null;
@@ -349,6 +362,7 @@ export function tryCapture(
   if (!hasLandAttack) {
     const network = state.waterNetwork;
     if (!network) return false;
+    if (tile.building === "HQ" || tile.building === "HARBOR") return false;
 
     const harborKey = getClosestNavalHarborKey(state, playerId, targetKey, network);
     if (!harborKey) return false;
@@ -366,16 +380,6 @@ export function tryCapture(
       path,
     };
   }
-
-  // Already being captured by same player → ignore . what if another player
-  if (tile.capture && tile.capture.by !== playerId) {
-    return false;
-  }
-
-  if (tile.capture && tile.capture.by === playerId) return true;
-
-  const cost = captureCost(tile.defense);
-  if (player.army < cost) return false;
 
   // Pay upfront
   modifyPlayerResources(state, player, 'army', -cost);

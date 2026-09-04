@@ -17,6 +17,7 @@ export const COLORS = {
 };
 
 export const USERNAME_STORAGE_KEY = 'ageofhexes_guest_username';
+export const EQUIPPED_SKIN_STORAGE_KEY = 'ageofhexes_equipped_skin';
 
 // Player Effects
 export const EFFECT_COSTS = {

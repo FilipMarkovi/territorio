@@ -1,4 +1,4 @@
-import { camera } from "../render/camera.js";
+import { camera, clampCamera } from "../render/camera.js";
 
 let dragging = false;
 let lastX = 0;
@@ -27,6 +27,7 @@ export function initPan(canvas: HTMLCanvasElement) {
     // move camera opposite to mouse drag
     camera.x -= dx;
     camera.y -= dy;
+    clampCamera();
 
     lastX = e.clientX;
     lastY = e.clientY;

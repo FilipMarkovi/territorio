@@ -71,6 +71,7 @@ export function fillRoomWithBots(
       id: botId,
       username: names[i],
       color,
+      skinId: null,
       status: "QUEUED",
       gold: STARTING_GOLD,
       army: STARTING_ARMY,

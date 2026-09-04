@@ -5,6 +5,10 @@ import { clientUIState, clientNetState } from "../state/clientState.js";
 import { toggleBuildMode } from "./buildMode.js";
 import { toggleAbilityMode } from "./abilityMode.js";
 import { toggleSiegeAttackMode } from "./siegeAttackMode.js";
+import { loadSettings, onSettingsChanged, type Keybinds } from "../input/settings.js";
+
+let keybinds: Keybinds = loadSettings().keybinds;
+onSettingsChanged((settings) => { keybinds = settings.keybinds; });
 
 type BtnDef = {
   type: BuildingType;
@@ -16,12 +20,12 @@ type BtnDef = {
 };
 
 const defs: BtnDef[] = [
-  { type: "FORT", key: "1", label: `Fort`, cost: BUILDING_COST["FORT"], limit: BUILDING_LIMIT["FORT"], description: "Increases defense of nearby tiles." },
-  { type: "BARRACKS", key: "2", label: "Barracks", cost: BUILDING_COST["BARRACKS"], limit: BUILDING_LIMIT["BARRACKS"], description: "Increases production rate of army." },
-  { type: "HOUSE", key: "3", label: "House", cost: BUILDING_COST["HOUSE"], limit: BUILDING_LIMIT["HOUSE"], description: "Increases maximum population size." },
-  { type: "LABORATORY", key: "4", label: "Laboratory", cost: BUILDING_COST["LABORATORY"], limit: BUILDING_LIMIT["LABORATORY"], description: "Unlocks ability to buy buffs and debuffs." },
-  { type: "HARBOR", key: "5", label: "Harbor", cost: BUILDING_COST["HARBOR"], limit: BUILDING_LIMIT["HARBOR"], description: "Enables attacks across water.\nMust be built next to water." },
-  { type: "SIEGE_OUTPOST", key: "6", label: "Siege Outpost", cost: BUILDING_COST["SIEGE_OUTPOST"], limit: BUILDING_LIMIT["SIEGE_OUTPOST"], description: "Offense oriented building that grants the ability to use special attacks within its range." },
+  { type: "FORT", key: keybinds.buildFort, label: `Fort`, cost: BUILDING_COST["FORT"], limit: BUILDING_LIMIT["FORT"], description: "Increases defense of nearby tiles." },
+  { type: "BARRACKS", key: keybinds.buildBarracks, label: "Barracks", cost: BUILDING_COST["BARRACKS"], limit: BUILDING_LIMIT["BARRACKS"], description: "Increases production rate of army." },
+  { type: "HOUSE", key: keybinds.buildHouse, label: "House", cost: BUILDING_COST["HOUSE"], limit: BUILDING_LIMIT["HOUSE"], description: "Increases maximum population size." },
+  { type: "LABORATORY", key: keybinds.buildLaboratory, label: "Laboratory", cost: BUILDING_COST["LABORATORY"], limit: BUILDING_LIMIT["LABORATORY"], description: "Unlocks ability to buy buffs and debuffs." },
+  { type: "HARBOR", key: keybinds.buildHarbor, label: "Harbor", cost: BUILDING_COST["HARBOR"], limit: BUILDING_LIMIT["HARBOR"], description: "Enables attacks across water.\nMust be built next to water." },
+  { type: "SIEGE_OUTPOST", key: keybinds.buildSiegeOutpost, label: "Siege Outpost", cost: BUILDING_COST["SIEGE_OUTPOST"], limit: BUILDING_LIMIT["SIEGE_OUTPOST"], description: "Offense oriented building that grants the ability to use special attacks within its range." },
 ];
 
 type ResearchDef = {
@@ -36,7 +40,7 @@ type ResearchDef = {
 const researchDefs: ResearchDef[] = [
   { 
     type: "ATTACK_SPEED", 
-    key: "E", 
+    key: keybinds.useAttackSpeedAbility, 
     label: "Blitz Attacks", 
     cost: EFFECT_COSTS["ATTACK_SPEED"],
     description: "Instantly injects an adrenaline buff boosting tile capture speeds by 50%.",
@@ -44,7 +48,7 @@ const researchDefs: ResearchDef[] = [
   },
   {
     type: "ARMY_GAIN_BUFF", 
-    key: "R",
+    key: keybinds.useArmyGainBuffAbility,
     label: "Overclock",
     cost: EFFECT_COSTS["ARMY_GAIN_BUFF"],
     description: `Boost army production by 2x for ${EFFECT_DURATIONS["ARMY_GAIN_BUFF"] / 2000}s, followed by an immediate 0.5x burnout crash for ${EFFECT_DURATIONS["ARMY_GAIN_BUFF"] / 2000}s.`,
@@ -52,7 +56,7 @@ const researchDefs: ResearchDef[] = [
   },
   {
     type: "HYPERINFLATION",
-    key: "T",
+    key: keybinds.useHyperinflationAbility,
     label: "Hyperinflation",
     cost: EFFECT_COSTS["HYPERINFLATION"],
     description: `Target player pays 50% more gold for all purchases for ${EFFECT_DURATIONS["HYPERINFLATION"] / 1000}s.`,
@@ -72,7 +76,7 @@ type SiegeAttackDef = {
 const siegeAttackDefs: SiegeAttackDef[] = [
   {
     type: "BOMBARD",
-    key: "Q",
+    key: keybinds.useBombardSiegeAttack,
     label: "Bombard",
     cost: SPECIAL_ATTACK_COSTS.BOMBARD,
     range: SPECIAL_ATTACK_RANGES.BOMBARD,
@@ -80,7 +84,7 @@ const siegeAttackDefs: SiegeAttackDef[] = [
   },
   {
     type: "PLAGUE_BOMB",
-    key: "W",
+    key: keybinds.usePlagueBombSiegeAttack,
     label: "Plague Bomb",
     cost: SPECIAL_ATTACK_COSTS.PLAGUE_BOMB,
     range: SPECIAL_ATTACK_RANGES.PLAGUE_BOMB,

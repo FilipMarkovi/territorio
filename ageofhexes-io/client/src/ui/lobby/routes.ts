@@ -2,11 +2,16 @@ import { ROOM_CODE_LENGTH } from "../../../../shared/constants.js";
 import { clientNetState, clientUIState } from "../../state/clientState.js";
 import { setPrivateView } from "./privateLobby.js";
 import { getLobbyRefs, lobbyRuntime } from "./state.js";
+import { renderStore } from "./store.js";
+import { renderInventory } from "./inventory.js";
+import { getEquippedSkin } from "./helpers.js";
 import type { LobbyTopTab } from "./types.js";
 
 type RouteTarget =
   | { kind: "LOBBY" }
   | { kind: "LEADERBOARD" }
+  | { kind: "STORE" }
+  | { kind: "INVENTORY" }
   | { kind: "PRIVATE_LOBBY"; roomId: string | null; code: string }
   | { kind: "MATCH"; roomId: string | null };
 
@@ -28,6 +33,14 @@ function parseCurrentRoute(): RouteTarget {
     return { kind: "LEADERBOARD" };
   }
 
+  if (path === "/store") {
+    return { kind: "STORE" };
+  }
+
+  if (path === "/inventory") {
+    return { kind: "INVENTORY" };
+  }
+
   if (path === "/privatelobby") {
     return {
       kind: "PRIVATE_LOBBY",
@@ -46,6 +59,14 @@ function parseCurrentRoute(): RouteTarget {
 function buildUrl(route: RouteTarget): string {
   if (route.kind === "LEADERBOARD") {
     return "/leaderboard";
+  }
+
+  if (route.kind === "STORE") {
+    return "/store";
+  }
+
+  if (route.kind === "INVENTORY") {
+    return "/inventory";
   }
 
   if (route.kind === "PRIVATE_LOBBY") {
@@ -75,20 +96,33 @@ function currentUrl(): string {
 
 function applyTopTabStyles(activeTab: LobbyTopTab) {
   const refs = getLobbyRefs();
-  const lobbyActive = activeTab === "LOBBY";
 
-  refs.lobbyTabBtn.style.background = lobbyActive ? "rgba(37, 99, 235, 0.9)" : "transparent";
-  refs.lobbyTabBtn.style.color = lobbyActive ? "#ffffff" : "#cbd5e1";
-  refs.leaderboardTabBtn.style.background = lobbyActive ? "transparent" : "rgba(37, 99, 235, 0.9)";
-  refs.leaderboardTabBtn.style.color = lobbyActive ? "#cbd5e1" : "#ffffff";
+  const setTabStyle = (btn: HTMLButtonElement, active: boolean) => {
+    btn.style.background = active ? "rgba(37, 99, 235, 0.9)" : "transparent";
+    btn.style.color = active ? "#ffffff" : "#cbd5e1";
+  };
 
-  refs.lobbyScreenEl.style.display = lobbyActive ? "flex" : "none";
-  refs.leaderboardScreenEl.style.display = lobbyActive ? "none" : "flex";
+  setTabStyle(refs.lobbyTabBtn, activeTab === "LOBBY");
+  setTabStyle(refs.leaderboardTabBtn, activeTab === "LEADERBOARD");
+  setTabStyle(refs.storeTabBtn, activeTab === "STORE");
+  setTabStyle(refs.inventoryTabBtn, activeTab === "INVENTORY");
+
+  refs.lobbyScreenEl.style.display = activeTab === "LOBBY" ? "flex" : "none";
+  refs.leaderboardScreenEl.style.display = activeTab === "LEADERBOARD" ? "flex" : "none";
+  refs.storeScreenEl.style.display = activeTab === "STORE" ? "flex" : "none";
+  refs.inventoryScreenEl.style.display = activeTab === "INVENTORY" ? "flex" : "none";
 }
 
 export function setLobbyTopTab(tab: LobbyTopTab) {
   lobbyRuntime.currentTopTab = tab;
   applyTopTabStyles(tab);
+
+  // Re-render so the tab reflects the latest auth state instead of a stale snapshot from a previous tab switch.
+  if (tab === "STORE") {
+    renderStore();
+  } else if (tab === "INVENTORY") {
+    renderInventory();
+  }
 }
 
 function leavePrivateLobbyIfNeeded(sendIntent: (intent: any) => void, hideError: () => void) {
@@ -123,6 +157,10 @@ export function syncRouteFromState(replace = false) {
     };
   } else if (lobbyRuntime.currentTopTab === "LEADERBOARD") {
     target = { kind: "LEADERBOARD" };
+  } else if (lobbyRuntime.currentTopTab === "STORE") {
+    target = { kind: "STORE" };
+  } else if (lobbyRuntime.currentTopTab === "INVENTORY") {
+    target = { kind: "INVENTORY" };
   } else {
     target = { kind: "LOBBY" };
   }
@@ -171,7 +209,8 @@ export function maybeJoinPrivateRoute(actions: RouteActions) {
   actions.sendIntent({
     type: "JOIN_PRIVATE_ROOM",
     username,
-    code
+    code,
+    skinId: getEquippedSkin()
   });
 }
 
@@ -219,6 +258,20 @@ export function handleRouteChange(actions: RouteActions) {
     return;
   }
 
+  if (route.kind === "STORE") {
+    leavePrivateLobbyIfNeeded(actions.sendIntent, actions.hideError);
+    setLobbyTopTab("STORE");
+    syncRouteFromState(true);
+    return;
+  }
+
+  if (route.kind === "INVENTORY") {
+    leavePrivateLobbyIfNeeded(actions.sendIntent, actions.hideError);
+    setLobbyTopTab("INVENTORY");
+    syncRouteFromState(true);
+    return;
+  }
+
   leavePrivateLobbyIfNeeded(actions.sendIntent, actions.hideError);
   setLobbyTopTab("LOBBY");
   syncRouteFromState(true);
@@ -233,7 +286,7 @@ export function initLobbyRouting(actions: RouteActions) {
 }
 
 export function handleTopTabNavigation(tab: LobbyTopTab, actions: RouteActions) {
-  if (tab === "LEADERBOARD") {
+  if (tab === "LEADERBOARD" || tab === "STORE" || tab === "INVENTORY") {
     leavePrivateLobbyIfNeeded(actions.sendIntent, actions.hideError);
   } else if (lobbyRuntime.currentPrivateView !== "IN_PRIVATE_LOBBY") {
     setPrivateView("MAIN", actions.hideError);

@@ -18,7 +18,7 @@ import type { CoreGameState, PlayerId } from "../../shared/index.js";
 import { buildWaterNetwork, getHexDistance, getEffectiveGoldCost } from "../../shared/util.js";
 import { initPan } from "./input/pan.js";
 import { initZoom } from "./input/zoom.js";
-import { camera } from "./render/camera.js";
+import { camera, clampCamera, setMapBounds } from "./render/camera.js";
 import { BASE_CAPTURE_COST, DEFENSE_COST_INCREMENT, HEX_SIZE, MIN_HQ_DISTANCE, DEFEND_COST_RATIO, SPECIAL_ATTACK_COSTS, SPECIAL_ATTACK_RANGES } from "../../shared/constants.js";
 import { clearBuildMode } from "./ui/buildMode.js";
 import { initKeyboard } from "./input/keyboard.js";
@@ -38,8 +38,10 @@ import { clearSiegeAttackMode } from "./ui/siegeAttackMode.js";
 import { supabase, handleAuthPopupIfNeeded } from "./utils/db.js";
 import { initAntiMultiTab } from "./utils/antiMultiTab.js";
 import { setupAuthAndUsername, updateCoinsDisplay } from "./ui/lobby/auth.js";
+import { lobbyRuntime } from "./ui/lobby/state.js";
 import { showActionError } from "./ui/hud.js";
 import { getSelectedServerHost } from "./constants/servers.js";
+import { loadSettings, onSettingsChanged } from "./input/settings.js";
 
 if (await handleAuthPopupIfNeeded()) {
   throw new Error("AgeOfHexes auth popup completed.");
@@ -52,6 +54,7 @@ if (!(await initAntiMultiTab())) {
 let mouseDownPos: { x: number; y: number } | null = null;
 let didDrag = false;
 let hoveredHex: { q: number; r: number } | null = null;
+let hasCenteredCamera = false;
 export let connectedByPlayer = new Map<PlayerId, Set<string>>();
 export let myPlannedBuildingCounts: Record<string, number> = {};
 export let myConTileCount: number | null = 0;
@@ -64,6 +67,16 @@ const backendHost = window.location.hostname === "localhost"
 
 const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
 const wsUrl = `${protocol}//${backendHost}`;
+
+function skinPurchaseErrorMessage(reason?: string): string {
+  switch (reason) {
+    case "ALREADY_OWNED": return "You already own this skin.";
+    case "INSUFFICIENT_FUNDS": return "Not enough coins.";
+    case "NOT_AUTHED": return "Sign in to buy skins.";
+    case "INVALID_ITEM": return "Invalid item.";
+    default: return "Failed to purchase skin.";
+  }
+}
 
 export const { sendIntent, tryAuth } = connect(wsUrl, {
   onWelcome: async (id, requiredPlayers, roomId) => {
@@ -92,25 +105,45 @@ export const { sendIntent, tryAuth } = connect(wsUrl, {
   onLog: (text, color) => {
     addGameLog(text, color);
   },
+  onDisconnected: () => {
+    //showError("Disconnected from server. Attempting to reconnect...");
+  },
+  onReconnected: () => {
+    //showSuccess("Reconnected.");
+  },
   onPrivateLobby: (msg) => {
     handlePrivateLobbyUpdate(msg);
   },
   onPrivateError: (reason) => {
     showError(reason);
   },
-  onAuthSuccess: (username, coins) => {
+  onAuthSuccess: (username, coins, ownedSkins) => {
     if (username) {
       showSuccess(`Signed in as ${username}`);
     }
     if (typeof coins === "number") {
       updateCoinsDisplay(coins);
     }
+    if (ownedSkins) {
+      lobbyRuntime.ownedSkins = new Set(ownedSkins);
+    }
+    scheduleLobbyUIUpdate();
   },
   onAuthFailure: (reason) => {
     showError(reason ?? "Authentication failed.");
   },
   onCoinsUpdate: (coins) => {
     updateCoinsDisplay(coins);
+  },
+  onSkinPurchaseResult: (msg) => {
+    if (msg.success) {
+      lobbyRuntime.ownedSkins.add(msg.skinId);
+      updateCoinsDisplay(msg.coins);
+      showSuccess("Skin purchased.");
+    } else {
+      showError(skinPurchaseErrorMessage(msg.reason));
+    }
+    scheduleLobbyUIUpdate();
   },
   onUsernameChangeResult: async (msg) => {
     if (msg.success) {
@@ -163,6 +196,25 @@ export const { sendIntent, tryAuth } = connect(wsUrl, {
     }
 
     clientNetState.state = state;
+
+    if (!hasCenteredCamera && state.tiles.size > 0) {
+      hasCenteredCamera = true;
+
+      let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+      for (const tile of state.tiles.values()) {
+        const worldX = HEX_SIZE * (Math.sqrt(3) * tile.q + (Math.sqrt(3) / 2) * tile.r);
+        const worldY = HEX_SIZE * (1.5 * tile.r);
+        if (worldX < minX) minX = worldX;
+        if (worldX > maxX) maxX = worldX;
+        if (worldY < minY) minY = worldY;
+        if (worldY > maxY) maxY = worldY;
+      }
+
+      setMapBounds({ minX, maxX, minY, maxY });
+      camera.x = (minX + maxX) / 2;
+      camera.y = (minY + maxY) / 2;
+      clampCamera();
+    }
 
     const waterNetwork = buildWaterNetwork(state);
 
@@ -554,8 +606,12 @@ window.addEventListener("mouseup", () => {
 
 let lastFrameTime = performance.now();
 export let deltaTime = 0;
-const targetFps = 60;
-const frameDuration = 1000 / targetFps; // ~16.67ms
+let targetFps = loadSettings().fpsLimit;
+let frameDuration = 1000 / targetFps;
+onSettingsChanged((settings) => {
+  targetFps = settings.fpsLimit;
+  frameDuration = 1000 / targetFps;
+});
 
 function loop() {
   requestAnimationFrame(loop);
@@ -637,6 +693,8 @@ function loop() {
         captureColor = attacker?.color ?? "#fff";
       }
 
+      const ownerSkinId = owner ? state.players.get(owner)?.skinId ?? null : null;
+
       visibleTiles.push({
         tile,
         x,
@@ -646,7 +704,8 @@ function loop() {
         color,
         fillAlpha,
         isHovered: isTileHovered,
-        captureColor
+        captureColor,
+        ownerSkinId
       });
     }
 

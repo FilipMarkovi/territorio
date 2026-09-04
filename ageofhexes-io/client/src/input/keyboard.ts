@@ -1,25 +1,30 @@
 import { toggleBuildMode, clearBuildMode } from "../ui/buildMode.js";
 import { toggleAbilityMode, clearAbilityMode } from "../ui/abilityMode.js";
 import { toggleSiegeAttackMode, clearSiegeAttackMode } from "../ui/siegeAttackMode.js";
+import { loadSettings, onSettingsChanged, type Keybinds } from "./settings.js";
 
+let keybinds: Keybinds = loadSettings().keybinds;
+onSettingsChanged((settings) => { keybinds = settings.keybinds; });
 
 export function initKeyboard() {
   window.addEventListener("keydown", (e) => {
     if (e.repeat) return;
 
-    if (e.key === "1") toggleBuildMode("FORT");
-    if (e.key === "2") toggleBuildMode("BARRACKS");
-    if (e.key === "3") toggleBuildMode("HOUSE");
-    if (e.key === "4") toggleBuildMode("LABORATORY");
-    if (e.key === "5") toggleBuildMode("HARBOR");
-    if (e.key === "6") toggleBuildMode("SIEGE_OUTPOST")
+    const key = e.key.toLowerCase();
 
-    if (e.key === "e") toggleAbilityMode("ATTACK_SPEED")
-    if (e.key === "r") toggleAbilityMode("ARMY_GAIN_BUFF")
-    if (e.key === "t") toggleAbilityMode("HYPERINFLATION")
+    if (key === keybinds.buildFort.toLowerCase()) toggleBuildMode("FORT");
+    if (key === keybinds.buildBarracks.toLowerCase()) toggleBuildMode("BARRACKS");
+    if (key === keybinds.buildHouse.toLowerCase()) toggleBuildMode("HOUSE");
+    if (key === keybinds.buildLaboratory.toLowerCase()) toggleBuildMode("LABORATORY");
+    if (key === keybinds.buildHarbor.toLowerCase()) toggleBuildMode("HARBOR");
+    if (key === keybinds.buildSiegeOutpost.toLowerCase()) toggleBuildMode("SIEGE_OUTPOST")
+
+    if (key === keybinds.useAttackSpeedAbility.toLowerCase()) toggleAbilityMode("ATTACK_SPEED")
+    if (key === keybinds.useArmyGainBuffAbility.toLowerCase()) toggleAbilityMode("ARMY_GAIN_BUFF")
+    if (key === keybinds.useHyperinflationAbility.toLowerCase()) toggleAbilityMode("HYPERINFLATION")
     
-    if (e.key === "q") toggleSiegeAttackMode("BOMBARD")
-    if (e.key === "w") toggleSiegeAttackMode("PLAGUE_BOMB")
+    if (key === keybinds.useBombardSiegeAttack.toLowerCase()) toggleSiegeAttackMode("BOMBARD")
+    if (key === keybinds.usePlagueBombSiegeAttack.toLowerCase()) toggleSiegeAttackMode("PLAGUE_BOMB")
 
     if (e.key === "Escape") {
       clearBuildMode();

@@ -1,9 +1,16 @@
+import { SKINS_CATALOG, SKIN_OVERLAYS, type SkinId } from "../../../shared/storeItems.js";
+import { HEX_SIZE } from "../../../shared/constants.js";
+
 export const tileTextures = {
   grass: null as CanvasPattern | null,
   desert: null as CanvasPattern | null,
   mountain: null as CanvasPattern | null,
   water: null as CanvasPattern | null,
 };
+
+export type SkinTexture = { pattern: CanvasPattern; scale: number; alpha: number };
+// Keyed by skinId. Only skins with a SKIN_OVERLAYS config end up populated here.
+export const skinPatterns: Record<string, SkinTexture | null> = {};
 
 export const buildingImages: Record<string, HTMLImageElement> = {};
 export const shipImage: { sprite: HTMLImageElement | null } = { sprite: null };
@@ -58,12 +65,18 @@ export function loadGameTextures(ctx: CanvasRenderingContext2D, onComplete: () =
     HYPERINFLATION: asset_folder + "hiperinflation_icon.png",
   };
 
+  const skin_folder = "../../../skins/";
+  const skinOverlaySources = (Object.keys(SKIN_OVERLAYS) as SkinId[]).map(
+    (skinId): [SkinId, string] => [skinId, skin_folder + skinId + ".png"]
+  );
+
   const totalImages =
     Object.keys(tileSources).length +
     Object.keys(buildingSources).length +
     Object.keys(miscSources).length +
     Object.keys(tileEffectSources).length +
-    Object.keys(playerEffectSources).length;
+    Object.keys(playerEffectSources).length +
+    skinOverlaySources.length;
   let loadedCount = 0;
 
   function checkLoad() {
@@ -138,6 +151,24 @@ export function loadGameTextures(ctx: CanvasRenderingContext2D, onComplete: () =
     img.src = src;
     img.onload = () => {
       playerEffectImages[type] = img;
+      checkLoad();
+    };
+
+    img.onerror = () => {
+      checkLoad();
+    };
+  });
+
+  // Load Skin Overlay Textures (territory pattern tiled across a configurable span of hexes)
+  skinOverlaySources.forEach(([skinId, src]) => {
+    const config = SKIN_OVERLAYS[skinId];
+    const img = new Image();
+    img.src = src;
+    img.onload = () => {
+      const pattern = ctx.createPattern(img, "repeat");
+      if (pattern && config) {
+        skinPatterns[skinId] = { pattern, scale: (config.spanHexes * HEX_SIZE) / img.naturalWidth, alpha: config.alpha };
+      }
       checkLoad();
     };
 

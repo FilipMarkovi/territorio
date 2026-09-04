@@ -1,6 +1,7 @@
 import { loginWithGoogle, supabase } from "../../utils/db.js";
 import { getOrCreateGuestName, escapeHtml } from "./helpers.js";
 import { getLobbyRefs, lobbyRuntime } from "./state.js";
+import { openSettingsModal } from "./settingsModal.js";
 
 function openUsernameModal(currentUsername: string, onConfirm: (username: string) => void) {
   const existing = document.getElementById("lobby-username-modal-overlay");
@@ -117,7 +118,7 @@ export async function setupAuthAndUsername(sendIntent?: (intent: any) => void) {
     try {
       const { data: profile } = await supabase
         .from("players")
-        .select("username, coins")
+        .select("username, coins, owned_skins")
         .eq("id", user.id)
         .maybeSingle();
 
@@ -127,6 +128,10 @@ export async function setupAuthAndUsername(sendIntent?: (intent: any) => void) {
 
       if (typeof profile?.coins === "number") {
         lobbyRuntime.coins = profile.coins;
+      }
+
+      if (Array.isArray(profile?.owned_skins)) {
+        lobbyRuntime.ownedSkins = new Set(profile.owned_skins);
       }
     } catch {
       console.warn("Failed to fetch username from database. Using random guest name.");
@@ -153,6 +158,9 @@ export async function setupAuthAndUsername(sendIntent?: (intent: any) => void) {
         <button id="change-username-btn" style="width:100%; text-align:left; background:none; border:none; color:#e2e8f0; font:500 13px system-ui; padding:10px 12px; cursor:pointer; transition:background 0.2s;">
           Change Username
         </button>
+        <button id="settings-btn" style="width:100%; text-align:left; background:none; border:none; color:#e2e8f0; font:500 13px system-ui; padding:10px 12px; cursor:pointer; transition:background 0.2s;">
+          Settings
+        </button>
         <button id="logout-btn" style="width:100%; text-align:left; background:none; border:none; color:#ef4444; font:500 13px system-ui; padding:10px 12px; cursor:pointer; transition:background 0.2s;">
           Log Out
         </button>
@@ -162,6 +170,7 @@ export async function setupAuthAndUsername(sendIntent?: (intent: any) => void) {
     const trigger = refs.topBarAuthContainer.querySelector("#user-menu-trigger") as HTMLButtonElement;
     const dropdown = refs.topBarAuthContainer.querySelector("#auth-dropdown") as HTMLDivElement;
     const changeUsernameBtn = refs.topBarAuthContainer.querySelector("#change-username-btn") as HTMLButtonElement;
+    const settingsBtn = refs.topBarAuthContainer.querySelector("#settings-btn") as HTMLButtonElement;
     const logoutBtn = refs.topBarAuthContainer.querySelector("#logout-btn") as HTMLButtonElement;
 
     trigger.onclick = (e) => {
@@ -186,6 +195,18 @@ export async function setupAuthAndUsername(sendIntent?: (intent: any) => void) {
       });
     };
 
+    settingsBtn.onmouseenter = () => {
+      settingsBtn.style.background = "rgba(255, 255, 255, 0.08)";
+    };
+    settingsBtn.onmouseleave = () => {
+      settingsBtn.style.background = "none";
+    };
+
+    settingsBtn.onclick = () => {
+      dropdown.style.display = "none";
+      openSettingsModal();
+    };
+
     logoutBtn.onmouseenter = () => {
       logoutBtn.style.background = "rgba(239, 68, 68, 0.1)";
     };
@@ -208,6 +229,7 @@ export async function setupAuthAndUsername(sendIntent?: (intent: any) => void) {
   refs.inputEl.value = getOrCreateGuestName();
   lobbyRuntime.isUserAuthenticated = false;
   lobbyRuntime.coins = null;
+  lobbyRuntime.ownedSkins = new Set();
   refs.inputEl.disabled = false;
   refs.inputEl.style.opacity = "1";
   refs.inputEl.style.cursor = "text";

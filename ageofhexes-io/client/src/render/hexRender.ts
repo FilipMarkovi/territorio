@@ -4,8 +4,8 @@ import { camera } from "./camera.js";
 import { getStripePattern } from "./patterns.js";
 import { FILL_ALPHA, BUILDING_SIZE_MULTIPLIERS, HEX_SIZE, HARBOR_ATTACK_TIME_INCREASE } from "../../../shared/constants.js";
 import { darken } from "./playerColors.js";
-import { DEFENSE_HEAT_DECAY_MS, BUILDING_CONSTRUCTION_TIME, BUILDING_DEMOLISH_TIME } from "../../../shared/constants.js";
-import { tileTextures, buildingImages, shipImage, tileEffectImages, playerEffectImages } from "./assetManager.js";
+import { DEFENSE_HEAT_DECAY_MS, BUILDING_CONSTRUCTION_TIME, BUILDING_DEMOLISH_TIME, TILE_ATTACK_COOLDOWN } from "../../../shared/constants.js";
+import { tileTextures, buildingImages, shipImage, tileEffectImages, playerEffectImages, skinPatterns } from "./assetManager.js";
 import { getServerNow } from "../utils/time.js";
 
 /**
@@ -23,6 +23,7 @@ export function drawHexBatch(
     color: string;
     fillAlpha: number;
     isHovered: boolean;
+    ownerSkinId?: string | null;
   }>,
   size: number
 ) {
@@ -31,7 +32,7 @@ export function drawHexBatch(
   // 1. Draw Terrain Backgrounds and Ownership Fills
   for (let i = 0; i < items.length; i++) {
     const item = items[i];
-    const { x, y, worldX, worldY, tile, color, fillAlpha, isHovered } = item;
+    const { x, y, worldX, worldY, tile, color, fillAlpha, isHovered, ownerSkinId } = item;
     const owner = tile.ownerId;
 
     ctx.beginPath();
@@ -87,6 +88,31 @@ export function drawHexBatch(
     ctx.fillStyle = color;
     ctx.fill();
     ctx.restore();
+
+    // Layer 3: EQUIPPED SKIN OVERLAY - tiled pattern repeated across the player's territory
+    if (owner && ownerSkinId) {
+      const skinTex = skinPatterns[ownerSkinId];
+      if (skinTex) {
+        ctx.save();
+        ctx.translate(-camera.x * camera.zoom + ctx.canvas.width / 2, -camera.y * camera.zoom + ctx.canvas.height / 2);
+        ctx.scale(camera.zoom * skinTex.scale, camera.zoom * skinTex.scale);
+
+        ctx.beginPath();
+        for (let j = 0; j < 6; j++) {
+          const angle = (Math.PI / 3) * j + Math.PI / 6;
+          ctx.lineTo(
+            (worldX + size * Math.cos(angle)) / skinTex.scale,
+            (worldY + size * Math.sin(angle)) / skinTex.scale
+          );
+        }
+        ctx.closePath();
+
+        ctx.globalAlpha = skinTex.alpha;
+        ctx.fillStyle = skinTex.pattern;
+        ctx.fill();
+        ctx.restore();
+      }
+    }
   }
 
   // 2. High Performance Unified Grid Lines Pass
@@ -174,8 +200,8 @@ export function drawHexEffectsBatch(
     if (timeSinceLast > DEFENSE_HEAT_DECAY_MS) continue;
 
     // EFFECT 1: ATTACK COOLDOWN (The 1-second "Stun")
-    if (timeSinceLast < 1000) {
-      const p = 1 - (timeSinceLast / 1000);
+    if (timeSinceLast < TILE_ATTACK_COOLDOWN) {
+      const p = 1 - (timeSinceLast / TILE_ATTACK_COOLDOWN);
       ctx.save();
       ctx.beginPath();
       for (let j = 0; j < 6; j++) {

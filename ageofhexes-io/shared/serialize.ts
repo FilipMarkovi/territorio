@@ -153,7 +153,9 @@ export function serializeState(state: CoreGameState): WireState {
       p.buildings.house,                   // 13
       p.buildings.laboratory,              // 14
       p.buildings.siege_outpost,           // 15
-      p.buildings.harbor                   // 16
+      p.buildings.harbor,                  // 16
+      null,                                 // 17: reserved (legacy effects slot placeholder)
+      p.skinId ?? null                     // 18
     ];
 
     if (p.effects.length > 0) {
@@ -274,6 +276,7 @@ export function deserializeState(raw: WireState): CoreGameState {
         siege_outpost: pArr[15] ?? 0,
         harbor: pArr[16] ?? 0
       },
+      skinId: pArr[18] ?? null,
       effects: effRaw ? effRaw.map((e: any) => ({
         type: PLY_EFF_REV[e[0]] as any,
         durationLeft: e[1],

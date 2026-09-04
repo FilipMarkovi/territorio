@@ -29,6 +29,7 @@ import { supabase } from './database/db.js';
 import { privateRoomCodes, createPrivateRoom } from "./util/rooms.js";
 import { getNextAvailablePlayerColor } from "./util/playerColors.js";
 import { PlayerMatchStats } from "../../shared/gameTypes.js";
+import { SKINS_CATALOG, DEFAULT_SKIN_ID } from "../../shared/storeItems.js";
 
 const __filename = fileURLToPath(import.meta.url);
 
@@ -64,13 +65,16 @@ export type ServerMsg =
       serverTime?: number;
     }
   | { type: "COINS_UPDATE"; coins: number }
-  | { type: "POST_MATCH_RESULTS"; stats: PlayerMatchStats };
+  | { type: "POST_MATCH_RESULTS"; stats: PlayerMatchStats }
+  | { type: "SKIN_PURCHASE_RESULT"; success: true; skinId: string; coins: number }
+  | { type: "SKIN_PURCHASE_RESULT"; success: false; reason: string };
 
 interface AuthenticatedSession {
   dbId: string;      
   coins: number;
   lastSavedCoins: number; // coins value already persisted to the database
   username: string;
+  ownedSkins: string[];
 }
 
 function sendCoinsUpdate(playerId: PlayerId, coins: number) {
@@ -118,6 +122,18 @@ function resolveJoinUsername(playerId: PlayerId, requestedUsername: string): str
 
   const guestName = typeof requestedUsername === "string" ? requestedUsername.trim() : "";
   return guestName.length > 0 ? guestName : "Guest";
+}
+
+// Only authenticated players who actually own a skin may equip it; everyone else falls back to the default.
+function resolveEquippedSkinId(playerId: PlayerId, requestedSkinId: unknown): string {
+  const requested = typeof requestedSkinId === "string" ? requestedSkinId : DEFAULT_SKIN_ID;
+  if (requested === DEFAULT_SKIN_ID) return DEFAULT_SKIN_ID;
+  if (!(requested in SKINS_CATALOG)) return DEFAULT_SKIN_ID;
+
+  const session = authSessions.get(playerId);
+  if (!session || !session.ownedSkins.includes(requested)) return DEFAULT_SKIN_ID;
+
+  return requested;
 }
 
 function applyTrackedUsernameToActiveRoom(playerId: PlayerId, username: string) {
@@ -205,7 +221,7 @@ export function updatePlayerStat(playerId: PlayerId, stat: TrackedStat, amount: 
   } else if (stat === "placement") {
     stats.placement = amount;
   } else {
-    stats[stat] += amount;
+    stats[stat] += Math.round(amount);
   }
 }
 
@@ -275,10 +291,11 @@ export function broadcastLobby(pid: PlayerId | null = null) {
   }
 }
 
-function handleJoinQueue(playerId: PlayerId, username: string) {
+function handleJoinQueue(playerId: PlayerId, username: string, skinId: unknown) {
   if (playerRoom.has(playerId)) return;
 
   const effectiveUsername = resolveJoinUsername(playerId, username);
+  const effectiveSkinId = resolveEquippedSkinId(playerId, skinId);
 
   const room = getQueueRoom();
   const color = getNextAvailablePlayerColor(room);
@@ -287,6 +304,7 @@ function handleJoinQueue(playerId: PlayerId, username: string) {
     id: playerId,
     username: effectiveUsername,
     color,
+    skinId: effectiveSkinId,
     status: "QUEUED",
     gold: STARTING_GOLD,
     army: STARTING_ARMY,
@@ -606,7 +624,7 @@ wss.on("connection", (ws, req) => {
         // Fetch their permanent profile row
         let { data: dbPlayer, error: dbError } = await supabase
           .from('players')
-          .select('id, coins, username')
+          .select('id, coins, username, owned_skins')
           .eq('id', googleUID)
           .single();
 
@@ -618,12 +636,14 @@ wss.on("connection", (ws, req) => {
           ? dbPlayer.username.trim()
           : "Player";
         const profileCoins = dbPlayer.coins || 0;
+        const profileOwnedSkins: string[] = Array.isArray(dbPlayer.owned_skins) ? dbPlayer.owned_skins : [];
 
         authSessions.set(playerId, {
           dbId: googleUID,
           coins: profileCoins,
           lastSavedCoins: profileCoins,
           username: profileUsername,
+          ownedSkins: profileOwnedSkins,
         });
 
         // if player joined room before auth was done
@@ -638,7 +658,7 @@ wss.on("connection", (ws, req) => {
 
         applyTrackedUsernameToActiveRoom(playerId, profileUsername);
         
-        ws.send(JSON.stringify({ type: "AUTH_SUCCESS", username: profileUsername, coins: profileCoins }));
+        ws.send(JSON.stringify({ type: "AUTH_SUCCESS", username: profileUsername, coins: profileCoins, ownedSkins: profileOwnedSkins }));
       } catch (err) {
         ws.send(JSON.stringify({ type: "AUTH_FAILURE", reason: "Authentication failed." }));
       }
@@ -653,7 +673,7 @@ wss.on("connection", (ws, req) => {
       if (intent.username && intent.username.length > 15) {
         intent.username = intent.username.substring(0, 15);
       }
-      handleJoinQueue(playerId, intent.username);
+      handleJoinQueue(playerId, intent.username, intent.skinId);
       return;
     }
 
@@ -702,6 +722,54 @@ wss.on("connection", (ws, req) => {
 
       applyTrackedUsernameToActiveRoom(playerId, updatedUsername);
       socket.send(JSON.stringify({ type: "USERNAME_CHANGE_RESULT", success: true, username: updatedUsername }));
+      return;
+    }
+
+    if (intent.type === "BUY_SKIN") {
+      const socket = sockets.get(playerId);
+      if (!socket || socket.readyState !== socket.OPEN) return;
+
+      const session = authSessions.get(playerId);
+      if (!session) {
+        socket.send(JSON.stringify({ type: "SKIN_PURCHASE_RESULT", success: false, reason: "NOT_AUTHED" } satisfies ServerMsg));
+        return;
+      }
+
+      const skinId = typeof intent.skinId === "string" ? intent.skinId : "";
+      const item = (SKINS_CATALOG as Record<string, { name: string; price: number }>)[skinId];
+      if (!item) {
+        socket.send(JSON.stringify({ type: "SKIN_PURCHASE_RESULT", success: false, reason: "INVALID_ITEM" } satisfies ServerMsg));
+        return;
+      }
+
+      if (session.ownedSkins.includes(skinId)) {
+        socket.send(JSON.stringify({ type: "SKIN_PURCHASE_RESULT", success: false, reason: "ALREADY_OWNED" } satisfies ServerMsg));
+        return;
+      }
+
+      if (session.coins < item.price) {
+        socket.send(JSON.stringify({ type: "SKIN_PURCHASE_RESULT", success: false, reason: "INSUFFICIENT_FUNDS" } satisfies ServerMsg));
+        return;
+      }
+
+      const newCoins = session.coins - item.price;
+      const newOwnedSkins = [...session.ownedSkins, skinId];
+
+      const { error } = await supabase
+        .from("players")
+        .update({ coins: newCoins, owned_skins: newOwnedSkins })
+        .eq("id", session.dbId);
+
+      if (error) {
+        socket.send(JSON.stringify({ type: "SKIN_PURCHASE_RESULT", success: false, reason: "SAVE_FAILED" } satisfies ServerMsg));
+        return;
+      }
+
+      session.coins = newCoins;
+      session.lastSavedCoins = newCoins;
+      session.ownedSkins = newOwnedSkins;
+
+      socket.send(JSON.stringify({ type: "SKIN_PURCHASE_RESULT", success: true, skinId, coins: newCoins } satisfies ServerMsg));
       return;
     }
 
@@ -755,6 +823,7 @@ wss.on("connection", (ws, req) => {
             fillWithBots: intent.fillWithBots ?? false,
             maxPlayers: intent.maxPlayers ?? 4,
             mapId,
+            skinId: intent.skinId,
           }
         );
       } catch (error) {
@@ -770,7 +839,7 @@ wss.on("connection", (ws, req) => {
       if (intent.username && intent.username.length > 15) {
         intent.username = intent.username.substring(0, 15);
       }
-      const result = handleJoinPrivateRoom(playerId, intent.username, intent.code);
+      const result = handleJoinPrivateRoom(playerId, intent.username, intent.code, intent.skinId);
       if (!result.success) {
         const ws = sockets.get(playerId);
         if (ws && ws.readyState === ws.OPEN) {
@@ -895,7 +964,7 @@ wss.on("connection", (ws, req) => {
 console.log(`Server running on ws://localhost:${PORT}`);
 
 
-export function handleJoinPrivateRoom(playerId: PlayerId, username: string, code: string) {
+export function handleJoinPrivateRoom(playerId: PlayerId, username: string, code: string, skinId: unknown) {
   if (playerRoom.has(playerId)) {
     return { success: false, reason: "ALREADY_IN_ROOM" };
   }
@@ -923,11 +992,13 @@ export function handleJoinPrivateRoom(playerId: PlayerId, username: string, code
 
   const color = getNextAvailablePlayerColor(room);
   const effectiveUsername = resolveJoinUsername(playerId, username);
+  const effectiveSkinId = resolveEquippedSkinId(playerId, skinId);
 
   setPlayer(room.state, {
     id: playerId,
     username: effectiveUsername,
     color,
+    skinId: effectiveSkinId,
     status: "QUEUED",
     gold: STARTING_GOLD,
     army: STARTING_ARMY,
@@ -1046,7 +1117,7 @@ export function createAndHostPrivateRoom(
   rooms: Map<RoomId, GameRoom>,
   hostPlayerId: PlayerId,
   username: string,
-  options?: { fillWithBots?: boolean; maxPlayers?: number; mapId?: string }
+  options?: { fillWithBots?: boolean; maxPlayers?: number; mapId?: string; skinId?: unknown }
 ) {
   if (playerRoom.has(hostPlayerId)) {
     throw new Error("PLAYER_ALREADY_IN_ROOM");
@@ -1061,11 +1132,13 @@ export function createAndHostPrivateRoom(
 
   const color = getNextAvailablePlayerColor(room);
   const effectiveUsername = resolveJoinUsername(hostPlayerId, username);
+  const effectiveSkinId = resolveEquippedSkinId(hostPlayerId, options?.skinId);
 
   setPlayer(room.state, {
     id: hostPlayerId,
     username: effectiveUsername,
     color,
+    skinId: effectiveSkinId,
     status: "QUEUED",
     gold: STARTING_GOLD,
     army: STARTING_ARMY,

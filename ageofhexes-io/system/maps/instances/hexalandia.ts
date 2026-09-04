@@ -29,8 +29,6 @@ export const hexalandia = asciiToGameMap(
      . . . . . . . W W W W W W W . W W W W W W W W W W W W W W W W . . . . . .
     . . . . . . W W W W W W W . W . W W W W W W W W W W W W W W . . . . . . . .
      . . . . . . W W . . W . W W . . . . W . . . W . . . . . . . . . . . . . .
-    . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
-     . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
   `,
   "Hexalandia",
   16

@@ -11,6 +11,7 @@ export function setPrivateView(view: PrivateViewMode, hideError: () => void) {
   refs.createPrivateContainer.style.display = view === "CREATE_PRIVATE" ? "flex" : "none";
   refs.joinPrivateContainer.style.display = view === "JOIN_PRIVATE" ? "flex" : "none";
   refs.inPrivateLobbyContainer.style.display = view === "IN_PRIVATE_LOBBY" ? "flex" : "none";
+  refs.inputEl.disabled = view === "IN_PRIVATE_LOBBY";
   scheduleLobbyUIUpdate();
 }
 

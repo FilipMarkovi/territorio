@@ -109,6 +109,7 @@ export interface PlayerState {
   id: PlayerId
   username: string | null
   color: string;
+  skinId: string | null;
   status: PlayerStatus;
   gold: number
   army: number

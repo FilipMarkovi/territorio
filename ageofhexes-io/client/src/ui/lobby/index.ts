@@ -3,15 +3,18 @@ import { clientNetState, clientUIState } from "../../state/clientState.js";
 import { PRIVATE_MAP_OPTIONS } from "./constants.js";
 import { setupAuthAndUsername } from "./auth.js";
 import { fetchLeaderboard } from "./leaderboard.js";
-import { getLobbyRefs, lobbyRuntime, scheduleLobbyUIUpdate, setLobbyRefs, setLobbyUIRefreshHandler } from "./state.js";
+import { renderStore } from "./store.js";
+import { renderInventory } from "./inventory.js";
+import { getLobbyRefs, lobbyRuntime, scheduleLobbyUIUpdate, setBuySkinHandler, setLobbyRefs, setLobbyUIRefreshHandler } from "./state.js";
 import { handlePrivateLobbyUpdate as handlePrivateLobbyUpdateInternal, setPrivateView } from "./privateLobby.js";
 import { handleRouteChange, handleTopTabNavigation, initLobbyRouting, maybeJoinPrivateRoute, setLobbyTopTab, syncRouteFromState } from "./routes.js";
 import type { LeaderboardCategory, PrivateLobbyUpdateMessage } from "./types.js";
-import { setGuestName } from "./helpers.js";
+import { setGuestName, getEquippedSkin } from "./helpers.js";
 import { USERNAME_STORAGE_KEY } from "../../../../shared/index.js";
 import type { PlayerMatchStats } from "../../../../shared/index.js";
 import { getServerNow } from "../../utils/time.js";
 import { SERVER_OPTIONS, getSelectedServerId, setSelectedServerId } from "../../constants/servers.js";
+import { initLobbyHexBackground, setLobbyHexBackgroundVisible } from "./hexBackground.js";
 
 let notificationTimer: number | null = null;
 let lobbyCountdownIntervalId: number | null = null;
@@ -179,6 +182,16 @@ function createLobbyMarkup(): string {
         </ul>
       </div>
     </div>
+
+    <div id="store-screen" style="display:none; flex-direction:column; gap:12px; width:min(560px, calc(100vw - 32px)); background:#0f172a; padding:18px; border-radius:16px; border:1px solid rgba(255,255,255,0.1); box-sizing:border-box; box-shadow:0 18px 40px rgba(0,0,0,0.32);">
+      <div style="font:700 24px system-ui; text-align:center; color:#38bdf8;">Store</div>
+      <div id="store-list" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(110px, 1fr)); gap:10px; min-height: 320px;"></div>
+    </div>
+
+    <div id="inventory-screen" style="display:none; flex-direction:column; gap:12px; width:min(560px, calc(100vw - 32px)); background:#0f172a; padding:18px; border-radius:16px; border:1px solid rgba(255,255,255,0.1); box-sizing:border-box; box-shadow:0 18px 40px rgba(0,0,0,0.32);">
+      <div style="font:700 24px system-ui; text-align:center; color:#38bdf8;">Inventory</div>
+      <div id="inventory-list" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(110px, 1fr)); gap:10px; min-height: 320px;"></div>
+    </div>
   `;
 }
 
@@ -246,6 +259,7 @@ export function hideError() {
 
 export function initLobbyUI(sendIntent: (intent: any) => void) {
   createIntroLoadingScreen();
+  initLobbyHexBackground();
 
   const topBarRoot = document.createElement("div");
   topBarRoot.style.position = "absolute";
@@ -276,6 +290,8 @@ export function initLobbyUI(sendIntent: (intent: any) => void) {
     <div style="position: absolute; left: 50%; transform: translateX(-50%); display:flex; align-items:center; justify-content:center; gap:6px; padding:4px; border-radius:10px; background:rgba(255,255,255,0.05);">
       <button id="top-tab-lobby" style="padding:7px 12px; border:none; border-radius:8px; background:rgba(37, 99, 235, 0.9); color:white; cursor:pointer; font:600 13px system-ui;">Lobby</button>
       <button id="top-tab-leaderboard" style="padding:7px 12px; border:none; border-radius:8px; background:transparent; color:#cbd5e1; cursor:pointer; font:600 13px system-ui;">Leaderboard</button>
+      <button id="top-tab-store" style="padding:7px 12px; border:none; border-radius:8px; background:transparent; color:#cbd5e1; cursor:pointer; font:600 13px system-ui;">Store</button>
+      <button id="top-tab-inventory" style="padding:7px 12px; border:none; border-radius:8px; background:transparent; color:#cbd5e1; cursor:pointer; font:600 13px system-ui;">Inventory</button>
     </div>
     <div id="top-bar-auth" style="position: relative;"></div>
   `;
@@ -468,8 +484,14 @@ export function initLobbyUI(sendIntent: (intent: any) => void) {
     collapsedReturnBtn,
     lobbyTabBtn: topBarRoot.querySelector("#top-tab-lobby") as HTMLButtonElement,
     leaderboardTabBtn: topBarRoot.querySelector("#top-tab-leaderboard") as HTMLButtonElement,
+    storeTabBtn: topBarRoot.querySelector("#top-tab-store") as HTMLButtonElement,
+    inventoryTabBtn: topBarRoot.querySelector("#top-tab-inventory") as HTMLButtonElement,
     lobbyScreenEl: lobbyRoot.querySelector("#lobby-screen") as HTMLDivElement,
     leaderboardScreenEl: lobbyRoot.querySelector("#leaderboard-screen") as HTMLDivElement,
+    storeScreenEl: lobbyRoot.querySelector("#store-screen") as HTMLDivElement,
+    storeListEl: lobbyRoot.querySelector("#store-list") as HTMLDivElement,
+    inventoryScreenEl: lobbyRoot.querySelector("#inventory-screen") as HTMLDivElement,
+    inventoryListEl: lobbyRoot.querySelector("#inventory-list") as HTMLDivElement,
     playBtn: lobbyRoot.querySelector("#play") as HTMLButtonElement,
     inputEl: lobbyRoot.querySelector("#name") as HTMLInputElement,
     statusEl: lobbyRoot.querySelector("#status") as HTMLDivElement,
@@ -519,12 +541,18 @@ export function initLobbyUI(sendIntent: (intent: any) => void) {
 
   refs.lobbyTabBtn.onclick = () => handleTopTabNavigation("LOBBY", { sendIntent, hideError, showError });
   refs.leaderboardTabBtn.onclick = () => handleTopTabNavigation("LEADERBOARD", { sendIntent, hideError, showError });
+  refs.storeTabBtn.onclick = () => handleTopTabNavigation("STORE", { sendIntent, hideError, showError });
+  refs.inventoryTabBtn.onclick = () => handleTopTabNavigation("INVENTORY", { sendIntent, hideError, showError });
 
   setupAuthAndUsername(sendIntent).finally(() => {
     lobbyRuntime.isAuthResolved = true;
     maybeJoinPrivateRoute({ sendIntent, hideError, showError });
+    scheduleLobbyUIUpdate();
   });
   fetchLeaderboard("wins");
+  setBuySkinHandler((skinId) => sendIntent({ type: "BUY_SKIN", skinId }));
+  renderStore();
+  renderInventory();
 
   refs.leaderboardTabsEl.querySelectorAll("button").forEach((btn) => {
     btn.onclick = () => {
@@ -565,7 +593,7 @@ export function initLobbyUI(sendIntent: (intent: any) => void) {
     refs.playBtn.style.opacity = "1";
     refs.playBtn.textContent = "Cancel Queue";
 
-    sendIntent({ type: "JOIN_QUEUE", username: name });
+    sendIntent({ type: "JOIN_QUEUE", username: name, skinId: getEquippedSkin() });
     syncRouteFromState();
     scheduleLobbyUIUpdate();
   };
@@ -605,7 +633,8 @@ export function initLobbyUI(sendIntent: (intent: any) => void) {
       username: name,
       fillWithBots: refs.fillBotsCheckbox.checked,
       maxPlayers,
-      mapId: selectedMapId
+      mapId: selectedMapId,
+      skinId: getEquippedSkin()
     });
   });
 
@@ -711,10 +740,19 @@ export function updateLobbyUI() {
   const isLobby = clientUIState.phase === "LOBBY" || clientUIState.phase === "QUEUED";
   refs.lobbyRoot.style.display =
     !state?.gameOver && isLobby ? "flex" : "none";
+  setLobbyHexBackgroundVisible(!state?.gameOver && isLobby);
 
   const footerinfo = document.getElementById("footer-info");
   if (footerinfo) {
     footerinfo.style.display = isLobby ? "block" : "none";
+  }
+
+  if (lobbyRuntime.currentTopTab === "STORE") {
+    renderStore();
+  }
+
+  if (lobbyRuntime.currentTopTab === "INVENTORY") {
+    renderInventory();
   }
 
   if (!lobby) {

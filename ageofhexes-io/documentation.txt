@@ -107,3 +107,15 @@ Players cant use coins for anything yet and are setup for future additions of sh
 25.8.2026. - add post match stats modal for displaying match stats (only shows stats from public matches
 as only there they are tracked). fixed time alive to not track hq placement time, ADDED NEW
 US EAST SERVER
+--------------------------
+26.8.2026. - implement websocket reconnect in lobby, round match stats to integer values,
+add 2 new maps, remove star map, disable username change field when already in private room,
+added store tab, skin buying with coins functionality and skin storing in the database (simple),
+--------------------------
+2.9.2026. - Reskin for ships, add first purchasable skin, implement inventory for eqipping a skin,
+implement displaying skins as a hex overlay with configurable span and transparency,
+implement sync of equipped skins between players, add skin preview image to store and inventory
+--------------------------
+4.9.2026. - position camera to map center at match start and restrict camera movement to the map,
+add check to trycapture if naval attack targets HQ or HARBOR, add hex background in lobby
+that reacts to mouse movement

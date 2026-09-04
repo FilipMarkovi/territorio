@@ -14,8 +14,14 @@ export interface LobbyRefs {
   collapsedReturnBtn: HTMLButtonElement;
   lobbyTabBtn: HTMLButtonElement;
   leaderboardTabBtn: HTMLButtonElement;
+  storeTabBtn: HTMLButtonElement;
+  inventoryTabBtn: HTMLButtonElement;
   lobbyScreenEl: HTMLDivElement;
   leaderboardScreenEl: HTMLDivElement;
+  storeScreenEl: HTMLDivElement;
+  storeListEl: HTMLDivElement;
+  inventoryScreenEl: HTMLDivElement;
+  inventoryListEl: HTMLDivElement;
   playBtn: HTMLButtonElement;
   inputEl: HTMLInputElement;
   statusEl: HTMLDivElement;
@@ -53,8 +59,14 @@ export const lobbyRuntime = {
   leaderboardCache: new Map<LeaderboardCategory, { data: LeaderboardEntry[]; timestamp: number }>(),
   scheduledUiUpdate: false,
   uiRefreshHandler: null as (() => void) | null,
-  resultsCollapsed: false
+  resultsCollapsed: false,
+  ownedSkins: new Set<string>(),
+  buySkinHandler: null as ((skinId: string) => void) | null
 };
+
+export function setBuySkinHandler(handler: (skinId: string) => void) {
+  lobbyRuntime.buySkinHandler = handler;
+}
 
 export function setLobbyRefs(refs: LobbyRefs) {
   lobbyRuntime.refs = refs;

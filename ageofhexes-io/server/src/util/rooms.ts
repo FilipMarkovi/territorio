@@ -49,6 +49,7 @@ const MAP_POOL: WeightedMap[] =
 // override weights
 const EXTRA_WEIGHTS: Record<string, number> = {
   logomap: 0,
+  skinshow: 0,
 };
 
 for (const m of MAP_POOL) {

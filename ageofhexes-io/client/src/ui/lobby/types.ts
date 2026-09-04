@@ -1,6 +1,6 @@
 export type PrivateViewMode = "MAIN" | "CREATE_PRIVATE" | "JOIN_PRIVATE" | "IN_PRIVATE_LOBBY";
 
-export type LobbyTopTab = "LOBBY" | "LEADERBOARD";
+export type LobbyTopTab = "LOBBY" | "LEADERBOARD" | "STORE" | "INVENTORY";
 
 export type LeaderboardCategory = "wins" | "games_played" | "players_eliminated" | "tiles_captured";
 
